@@ -2136,6 +2136,7 @@ public class ClassReader implements Completer {
         } else if (sym.kind == PCK) {
             PackageSymbol p = (PackageSymbol)sym;
             try {
+                // 包下成员符号的填充通过调用fillIn()方法来完成
                 fillIn(p);
             } catch (IOException ex) {
                 throw new CompletionFailure(sym, ex.getLocalizedMessage()).initCause(ex);
@@ -2438,12 +2439,8 @@ public class ClassReader implements Completer {
         String packageName = p.fullname.toString();
 
         Set<JavaFileObject.Kind> kinds = getPackageFileKinds();
-
-        fillIn(p, PLATFORM_CLASS_PATH,
-               fileManager.list(PLATFORM_CLASS_PATH,
-                                packageName,
-                                EnumSet.of(JavaFileObject.Kind.CLASS),
-                                false));
+        // 调用list()方法从PLATFORM_CLASS_PATH中查找文件并调用fillIn()方法填充PackageSymbol对象的members_field
+        fillIn(p, PLATFORM_CLASS_PATH, fileManager.list(PLATFORM_CLASS_PATH, packageName, EnumSet.of(JavaFileObject.Kind.CLASS), false));
 
         Set<JavaFileObject.Kind> classKinds = EnumSet.copyOf(kinds);
         classKinds.remove(JavaFileObject.Kind.SOURCE);
@@ -2484,51 +2481,39 @@ public class ClassReader implements Completer {
             }
         }
 
+        // 调用list()方法从CLASS_PATH或SOURCE_PATH中查找文件并调用fillIn()方法填充PackageSymbol对象的members_field
         if (wantSourceFiles && !haveSourcePath) {
-            fillIn(p, CLASS_PATH,
-                   fileManager.list(CLASS_PATH,
-                                    packageName,
-                                    kinds,
-                                    false));
+            fillIn(p, CLASS_PATH,fileManager.list(CLASS_PATH,packageName,kinds,false));
         } else {
             if (wantClassFiles)
-                fillIn(p, CLASS_PATH,
-                       fileManager.list(CLASS_PATH,
-                                        packageName,
-                                        classKinds,
-                                        false));
+                fillIn(p, CLASS_PATH, fileManager.list(CLASS_PATH, packageName, classKinds, false));
             if (wantSourceFiles)
-                fillIn(p, SOURCE_PATH,
-                       fileManager.list(SOURCE_PATH,
-                                        packageName,
-                                        sourceKinds,
-                                        false));
+                fillIn(p, SOURCE_PATH, fileManager.list(SOURCE_PATH, packageName, sourceKinds, false));
         }
         verbosePath = false;
     }
+
     // where
-        private void fillIn(PackageSymbol p,
-                            Location location,
-                            Iterable<JavaFileObject> files)
-        {
-            currentLoc = location;
-            for (JavaFileObject fo : files) {
-                switch (fo.getKind()) {
+    private void fillIn(PackageSymbol p, Location location, Iterable<JavaFileObject> files) {
+        currentLoc = location;
+        for (JavaFileObject fo : files) {
+            switch (fo.getKind()) {
                 case CLASS:
                 case SOURCE: {
                     // TODO pass binaryName to includeClassFile
+                    // 获取文件的二进制名称
                     String binaryName = fileManager.inferBinaryName(currentLoc, fo);
+                    // 获取文件的简短名称
                     String simpleName = binaryName.substring(binaryName.lastIndexOf(".") + 1);
-                    if (SourceVersion.isIdentifier(simpleName) ||
-                        simpleName.equals("package-info"))
+                    if (SourceVersion.isIdentifier(simpleName) || simpleName.equals("package-info"))
                         includeClassFile(p, fo);
                     break;
                 }
                 default:
                     extraFileActions(p, fo);
-                }
             }
         }
+    }
 
     /** Output for "-checkclassfile" option.
      *  @param key The key to look up the correct internationalized string.
